@@ -1,0 +1,8 @@
+.env
+.venv/
+.nivo-venv/
+__pycache__/
+*.py[cod]
+frontend/node_modules/
+frontend/dist/
+*.sqlite3
