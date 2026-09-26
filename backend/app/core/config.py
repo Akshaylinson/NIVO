@@ -10,4 +10,7 @@ class Settings:
     intent_threshold: float = float(os.getenv("NIVO_INTENT_THRESHOLD", "0.78"))
     protocol_version: str = "1.0"
     ai_provider: str = os.getenv("NIVO_AI_PROVIDER", "mock")
+    environment: str = os.getenv("ENVIRONMENT", "development")
+    mock_signal_dir: str = os.getenv("NIVO_MOCK_SIGNAL_DIR", "data/mock_signals")
+    stream_batch_ms: int = int(os.getenv("NIVO_STREAM_BATCH_MS", "100"))
 settings = Settings()

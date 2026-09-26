@@ -11,6 +11,7 @@ from backend.app.sessions.manager import SessionManager
 from backend.app.context.engine import ContextEngine
 from backend.app.gateway.providers import MockProvider
 from backend.app.ai.agent import AIAgent
+from backend.app.biosignal.ingestion import normalize_packet
 app=FastAPI(title="NIVO",version="0.1.0"); app.add_middleware(CORSMiddleware,allow_origins=["http://localhost:5173"],allow_methods=["*"],allow_headers=["*"])
 sessions=SessionManager(); processor=SignalProcessor(); features=FeatureExtractor(); classifier=BaselineIntentClassifier(); confidence=ConfidenceLayer(settings.intent_threshold); agent=AIAgent(MockProvider()); calibrations={}
 @app.get("/health")
@@ -38,12 +39,13 @@ def calibration_complete(request:CalibrationComplete):
     if request.calibration_id not in calibrations: raise HTTPException(404,"calibration not found")
     calibrations[request.calibration_id].update(status="complete",labels=request.labels,model_version="user-baseline-1.0"); return calibrations[request.calibration_id]
 @app.websocket("/ws/v1/session/{session_id}")
+@app.websocket("/ws/v1/ingest/{session_id}")
 async def stream(websocket:WebSocket,session_id:str):
     if not sessions.get(session_id): await websocket.close(code=4404); return
     await websocket.accept(); sessions.transition(session_id,SessionState.LISTENING); await websocket.send_json({"type":"state","state":"LISTENING","session_id":session_id})
     try:
       while True:
-        frame=SignalFrame.model_validate(await websocket.receive_json()); x=processor.process(frame.samples,frame.sampling_rate); quality=features.extract(x,frame.sampling_rate)["quality"]; sessions.get(session_id).signal_quality=quality
+        frame=normalize_packet(await websocket.receive_json()); x=processor.process(frame.samples,frame.sampling_rate); quality=features.extract(x,frame.sampling_rate)["quality"]; sessions.get(session_id).signal_quality=quality
         intent,score=classifier.predict(x,frame.sampling_rate)
         if confidence.accept(intent,score):
           sessions.transition(session_id,SessionState.PROCESSING); event=IntentEvent(session_id=session_id,intent=intent,confidence=score,source=Source(device=frame.device)); sessions.get(session_id).intents.append(event)
