@@ -33,7 +33,7 @@ def load_artifact(path: str | None = None) -> tuple[np.ndarray, list[str]]:
     if settings.environment.lower() != "development":
         raise RuntimeError("MockHardwareStreamer is limited to ENVIRONMENT=development")
     root = Path(settings.mock_signal_dir)
-    selected = Path(path) if path else next(iter(root.glob("*.npy")), None) if root.exists() else None
+    selected = Path(path) if path else next(iter([*root.glob("*.npy"), *root.glob("*.json")]), None) if root.exists() else None
     if selected and selected.exists():
         data = np.load(selected) if selected.suffix == ".npy" else np.asarray(json.loads(selected.read_text())["data"])
         if data.ndim != 2:

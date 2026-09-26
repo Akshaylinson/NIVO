@@ -55,3 +55,17 @@ python3 -m simulator.mock_hardware_streamer --session nivo_your_session_id
 Use `--artifact data/mock_signals/example.npy` to select a file and `--loop` to
 reconnect after temporary WebSocket failures. Packet batches default to 100 ms;
 set `NIVO_STREAM_BATCH_MS` to adjust them.
+
+### Importing an OpenBCI CSV
+
+OpenBCI GUI exports place time in column 0, EEG in columns 1–8, and auxiliary
+data after that. Convert the first six EEG channels to a 20-second artifact:
+
+```bash
+python3 scripts/convert_openbci_csv.py OpenBCI-RAW-New_Alpha.csv
+```
+
+The importer ignores `%` metadata lines, centers electrode DC offsets, and
+robustly scales the result before saving `data/mock_signals/example.npy`. This
+is necessary for raw recordings with large offsets to pass the pipeline's
+artifact safeguards.
