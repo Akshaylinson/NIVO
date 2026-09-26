@@ -9,6 +9,7 @@ import asyncio
 import json
 import time
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
 import websockets
@@ -43,9 +44,13 @@ def load_artifact(path: str | None = None) -> tuple[np.ndarray, list[str]]:
 
 
 class MockHardwareStreamer:
-    def __init__(self, session_id: str, url: str = "ws://localhost:8000", artifact: str | None = None, batch_ms: int = settings.stream_batch_ms):
+    def __init__(self, session_id: str, url: str = "ws://localhost:8000", artifact: str | None = None, batch_ms: int = settings.stream_batch_ms, on_log: Callable[[str], None] | None = None):
         self.session_id, self.url, self.batch_ms = session_id, url.rstrip("/"), batch_ms
         self.data, self.channels = load_artifact(artifact)
+        self.on_log = on_log
+
+    def log(self, message: str) -> None:
+        if self.on_log: self.on_log(message)
 
     async def stream(self, loop: bool = False) -> None:
         chunk = max(1, round(settings.sampling_rate * self.batch_ms / 1000))
@@ -54,16 +59,20 @@ class MockHardwareStreamer:
             try:
                 async with websockets.connect(endpoint) as socket:
                     await socket.recv()  # LISTENING acknowledgement
+                    self.log(f"WebSocket connected: {endpoint}")
                     for start in range(0, len(self.data), chunk):
                         await socket.send(json.dumps({"timestamp": time.time(), "channels": self.channels, "data": self.data[start:start + chunk].tolist(), "sampling_rate": settings.sampling_rate, "device": "mock-public-artifact"}))
-                        await socket.recv()  # consume telemetry / intent output
+                        reply = json.loads(await socket.recv())  # consume telemetry / intent output
+                        self.log(f"packet {start // chunk + 1}: {len(self.data[start:start + chunk])} samples → {reply.get('type', 'message')}")
                         await asyncio.sleep(self.batch_ms / 1000)
             except (OSError, websockets.WebSocketException):
                 if not loop:
                     raise
+                self.log("WebSocket disconnected; retrying in 1 second")
                 await asyncio.sleep(1)
                 continue
             if not loop:
+                self.log("Artifact stream completed")
                 return
 
 
